@@ -1249,7 +1249,9 @@
     const raw = object(value) ? value : {};
     const items = {};
     const allowed = game2 === "target" ? TARGETS : AREAS;
-    for (const [id, row] of Object.entries(object(raw.items) ? raw.items : {})) {
+    const source = object(raw.items) ? raw.items : {};
+    for (const id of Object.keys(source).sort()) {
+      const row = source[id];
       if (!allowed.has(id) || !object(row)) continue;
       const attempts = count(row.attempts), correct = Math.min(count(row.correct), attempts), streak = Math.min(count(row.streak), correct);
       items[id] = { attempts, correct, streak, mastered: game2 === "target" ? streak >= 2 : row.mastered === true && correct > 0 };

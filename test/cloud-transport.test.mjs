@@ -229,3 +229,21 @@ test('a signed-in second account cannot flush the first account’s pending loca
   assert.equal((await store.load(profile.id)).needsUpload, true)
   connection.disconnect(); store.close()
 })
+
+test('a committed math save still reconciles after JSON object keys are reordered by the database',async()=>{
+  const {cleanProgress,normalizeSnapshot}=await import('../public/shared/snapshot.js');
+  const {connection,api}=await connect(endpoint(),{normalize:value=>normalizeSnapshot('target',value)});
+  try {
+    await login(connection);
+    const value=cleanProgress('target',{solved:3,items:{t8:{attempts:2,correct:2,streak:2},t6:{attempts:1,correct:1,streak:1}}});
+    const attempt={writeId:crypto.randomUUID(),expectedRemoteRevision:0,snapshot:value};
+    api.loseNextWrite=true;
+    await assert.rejects(connection.write(binding,attempt),{code:'unavailable'});
+    // JSON objects have no significant key order; PostgreSQL JSONB can return
+    // a different order from the original sequence in which cards were played.
+    api.row.snapshot.items=Object.fromEntries(Object.entries(api.row.snapshot.items).reverse());
+    const recovered=await connection.write(binding,attempt);
+    assert.equal(recovered.status,'saved');assert.equal(recovered.remote.revision,1);
+    assert.equal(api.calls.filter(call=>call.method==='POST'&&call.url.includes('learning_saves')).length,1);
+  } finally {connection.disconnect()}
+});

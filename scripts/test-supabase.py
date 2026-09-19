@@ -90,7 +90,8 @@ def main():
             matches=[r for r in found if predicate(r)]
             if len(matches)==1:return matches[0]
             page.wait_for_timeout(100)
-        raise AssertionError('Expected durable local save state did not arrive.')
+        summary=[{k:r.get(k) for k in ('localRevision','remoteRevision','needsUpload')} | {'inflight':bool(r.get('inflight')),'conflict':bool(r.get('conflict'))} for r in found]
+        raise AssertionError('Expected durable local save state did not arrive: '+json.dumps(summary))
     def answer(page):
         if page.locator('dialog').evaluate('(el)=>el.open'):page.get_by_role('button',name='Close',exact=True).click()
         if page.locator('#auto-advance').is_checked():page.locator('#auto-advance').uncheck()
