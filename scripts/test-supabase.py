@@ -169,7 +169,7 @@ def main():
                     page.get_by_role('button',name='Learners and backups',exact=True).wait_for()
                     settings(page);page.get_by_label('New learner nickname',exact=True).fill(label);page.get_by_role('button',name='Add learner',exact=True).click()
                     page.get_by_text('learner: '+label+'.',exact=False).wait_for()
-                    settings(page);page.get_by_role('button',name='Play as Player 1',exact=True).click()
+                    settings(page);page.get_by_role('button',name='Play as Player 1',exact=True).click();page.get_by_text('learner: Player 1.',exact=False).wait_for()
                     settings(page);page.once('dialog',lambda dialog:dialog.accept());page.get_by_role('button',name='Remove this learner from this game',exact=True).click()
                     page.get_by_text('learner: '+label+'.',exact=False).wait_for()
                     page.locator('#auto-advance').uncheck();page.get_by_text('Saved on this device.',exact=False).wait_for()
@@ -239,7 +239,7 @@ def main():
                 # A second browser authenticates normally and restores the exact course.
                 other = new_page('Local'); login(other, 'adult-a@example.invalid')
                 other.get_by_role('button', name='Preview Comet', exact=True).click()
-                other.get_by_role('button', name='Restore as a new local learner', exact=True).click()
+                other.get_by_role('button', name='Restore as a new local learner', exact=True).click();other.get_by_text('learner: Comet.',exact=False).wait_for()
                 restored = wait_record(other, lambda r: r['binding'] is not None)
                 assert restored['snapshot'] == rows(token_a)[0]['snapshot']
                 # Queue an offline A edit, disconnect, then sign in as B. Never retarget it.
@@ -257,7 +257,7 @@ def main():
                 # afterward without needing an extra answer or a Retry click.
                 switching = new_page('Local'); login(switching, 'adult-a@example.invalid')
                 switching.get_by_role('button', name='Preview Comet', exact=True).click()
-                switching.get_by_role('button', name='Restore as a new local learner', exact=True).click()
+                switching.get_by_role('button', name='Restore as a new local learner', exact=True).click();switching.get_by_text('learner: Comet.',exact=False).wait_for()
                 wait_record(switching, lambda r: r['binding'] is not None)
                 settings(switching);switching.get_by_label('New learner nickname',exact=True).fill('Nebula');switching.get_by_role('button',name='Add learner',exact=True).click();switching.get_by_text('learner: Nebula.',exact=False).wait_for()
                 settings(switching)
@@ -268,11 +268,11 @@ def main():
                     switching.wait_for_timeout(100)
                 assert len(records) == 2 and all(r['binding'] and not r['needsUpload'] for r in records)
                 settings(switching)
-                switching.get_by_role('button', name='Play as Comet', exact=True).click()
+                switching.get_by_role('button', name='Play as Comet', exact=True).click();switching.get_by_text('learner: Comet.',exact=False).wait_for()
                 switching.evaluate('() => { window.flushGate.armed=true; window.flushGate.started=false }')
                 answer(switching)
                 switching.wait_for_function('window.flushGate.started')
-                settings(switching);switching.get_by_role('button', name='Play as Nebula', exact=True).click()
+                settings(switching);switching.get_by_role('button', name='Play as Nebula', exact=True).click();switching.get_by_text('learner: Nebula.',exact=False).wait_for()
                 answer(switching)
                 switching.wait_for_timeout(100)
                 switching.evaluate('() => { window.flushGate.release() }')
