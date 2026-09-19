@@ -36,6 +36,7 @@ jobs:
       - run: python -m playwright install --with-deps chromium
       - run: python scripts/test-browser.py
       - run: python scripts/test-saves-browser.py
+      - run: python scripts/test-cloud-actions-browser.py
   real-supabase:
     runs-on: ubuntu-24.04
     timeout-minutes: 25

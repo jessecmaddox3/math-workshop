@@ -2,7 +2,7 @@ import { openProgressStore } from './progress-store.js';
 import { createMemoryStore } from './memory-store.js';
 import { createCloudPanel } from './cloud-panel.js';
 import { CURRICULA,cleanProgress,normalizeSnapshot,exportSnapshot,importSnapshot } from './snapshot.js';
-let game,store,profile,record,live,cloud,durable=true,pending=0,retired=false,saveTail=Promise.resolve(),message,dialog,profileList,loading=false,selectionEpoch=0,importEpoch=0,recoveryMode=false,recoveryRaw=null,exportButton,modalMessage,lastMessage='';
+let game,store,profile,record,live,cloud,durable=true,pending=0,retired=false,saveTail=Promise.resolve(),message,dialog,profileList,loading=false,selectionEpoch=0,importEpoch=0,recoveryMode=false,recoveryRaw=null,exportButton,modalMessage,lastMessage='',refreshEpoch=0;
 const title={target:'Target Number',areamaze:'Area Mazes'};
 const el=(tag,text)=>{const n=document.createElement(tag);if(text)n.textContent=text;return n;};
 function download(value,name){const url=URL.createObjectURL(new Blob([JSON.stringify(value,null,2)],{type:'application/json'}));const a=el('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}
@@ -35,17 +35,47 @@ async function selectProfile(next){
   }catch(error){retire(`${error.message} Export this tab’s copy if needed, then reload.`);}
   finally{if(epoch===selectionEpoch)loading=false;}
 }
-async function refreshActive({source}={}){
-  if(pending||loading||retired||recoveryMode||!profile)return;
-  const expected=record.localRevision,id=profile.id,epoch=selectionEpoch,loaded=await store.load(id);
-  if(pending||loading||retired||profile.id!==id||selectionEpoch!==epoch||record.localRevision!==expected)return;
-  if(!loaded){retire('This learner was removed in another tab. Export this tab’s older copy if needed, then reload.');return;}
-  if(loaded.localRevision!==record.localRevision&&source==='cloud-action'){
-    const changed=JSON.stringify(loaded.snapshot)!==JSON.stringify(record.snapshot);
-    record=loaded;live=normalizeSnapshot(game,loaded.snapshot);
-    if(changed){document.dispatchEvent(new Event('progress-retired'));document.dispatchEvent(new Event('progress-loaded'));}
-    status();return;
+// Adopt only the exact record returned by this tab's successful transaction.
+// Passive reads started before it must never classify that commit as another tab.
+async function mutateActive(action){
+  if(pending||loading||retired||recoveryMode)throw new Error('Finish the current save before changing cloud progress.');
+  loading=true;refreshEpoch++;
+  const gameplay=document.querySelector('#gameplay'),wasInert=gameplay.inert;
+  gameplay.inert=true;
+  try{
+    const result=await action();
+    if(result.status==='saved'){
+      const loaded=result.record;
+      if(!loaded||loaded.profileId!==profile.id)throw new Error('Cloud action returned a different learner.');
+      const changed=JSON.stringify(loaded.snapshot)!==JSON.stringify(record.snapshot);
+      record=loaded;live=normalizeSnapshot(game,loaded.snapshot);
+      if(changed){document.dispatchEvent(new Event('progress-retired'));document.dispatchEvent(new Event('progress-loaded'));}
+      status();
+    }
+    return result;
+  }finally{
+    loading=false;refreshEpoch++;gameplay.inert=retired||wasInert;
+    void refreshActive().catch(()=>retire('Saved progress could not be checked. Export a copy before reloading.'));
   }
+}
+async function removeAndSelect(action){
+  if(pending||loading||retired)throw new Error('Finish the current save before removing learners.');
+  loading=true;refreshEpoch++;
+  const gameplay=document.querySelector('#gameplay'),wasInert=gameplay.inert;
+  gameplay.inert=true;
+  let next;
+  try{
+    await action();
+    const remaining=await store.listProfiles();
+    next=remaining.find(p=>p.id===profile.id)||remaining[0]||await store.createProfile('Player 1',cleanProgress(game,{}));
+  }catch(error){retire('Learner removal could not finish. Export this tab’s copy if needed, then reload.');throw error;}finally{loading=false;refreshEpoch++;gameplay.inert=retired||wasInert;}
+  await selectProfile(next);
+}
+async function refreshActive(){
+  if(pending||loading||retired||recoveryMode||!profile)return;
+  const expected=record.localRevision,id=profile.id,epoch=selectionEpoch,refresh=refreshEpoch,loaded=await store.load(id);
+  if(pending||loading||retired||profile.id!==id||selectionEpoch!==epoch||refreshEpoch!==refresh||record.localRevision!==expected)return;
+  if(!loaded){retire('This learner was removed in another tab. Export this tab’s older copy if needed, then reload.');return;}
   if(loaded.localRevision!==record.localRevision){retire('Saved progress changed in another tab or cloud action. Export this tab’s copy if needed, then reload to use the current save.');return;}
   record=loaded;
 }
@@ -74,12 +104,12 @@ export async function initProgress(which){
   upload.addEventListener('change',async()=>{const file=upload.files[0];const epoch=++importEpoch;upload.value='';if(!file)return;if(pending||loading||retired){say('Export unsaved progress or reload before importing.');return;}
     try{if(file.size>1048576)throw new Error('Choose a backup smaller than 1 MB.');const value=importSnapshot(game,JSON.parse(await file.text()));if(epoch!==importEpoch)return;if(pending||loading||retired)throw new Error('Progress changed while reading the file. Try again.');const p=await store.createProfile(value.label,value.snapshot);if(epoch===importEpoch)await selectProfile(p);else await showProfiles();}catch(error){say(`Import failed: ${error.message}`);}});
   button(backups,'Export recovery copies',async()=>{const copies=await store.listRecovery(profile.id);download({app:'math-workshop-recovery',game,curriculum:CURRICULA[game],version:1,copies:copies.map(c=>({reason:c.reason,createdAt:c.createdAt,backup:exportSnapshot(game,profile.label,c.snapshot)}))},`math-workshop-${game}-recovery.json`);},{needsIdle:false});
-  button(backups,'Remove this learner from this game',async()=>{if(!confirm('Remove this learner and recovery copies from this game on this device? Other games and cloud copies remain. Export a backup first if needed.'))return;await store.removeProfile(profile.id);cloud.disconnect();const remaining=await store.listProfiles();await selectProfile(remaining[0]||await store.createProfile('Player 1',cleanProgress(game,{})));cloud.renderConnected();});dialog.append(backups);
+  button(backups,'Remove this learner from this game',async()=>{if(!confirm('Remove this learner and recovery copies from this game on this device? Other games and cloud copies remain. Export a backup first if needed.'))return;cloud.disconnect();await removeAndSelect(()=>store.removeProfile(profile.id));});dialog.append(backups);
   const cloudRoot=el('section');cloudRoot.append(el('h3','Optional cloud saves for this game'));dialog.append(cloudRoot);
   cloud=createCloudPanel(cloudRoot,{store,durable,normalize,gameId:game,curriculumId:CURRICULA[game],
     configURL:new URL('../cloud-config.local.json',document.baseURI),helpURL:'https://github.com/jessecmaddox3/math-workshop/blob/main/docs/cloud-setup.md',
-    getProfile:()=>profile,isBusy:()=>pending>0||loading||retired||recoveryMode,onChange:refreshActive,
-    onRestore:selectProfile,onProfilesCleared:async()=>{const remaining=await store.listProfiles();await selectProfile(remaining.find(p=>p.id===profile.id)||remaining[0]||await store.createProfile('Player 1',cleanProgress(game,{})));},onMessage:say,describe:s=>`${s.solved} solved; level ${s.tier}`});
+    getProfile:()=>profile,isBusy:()=>pending>0||loading||retired||recoveryMode,onChange:refreshActive,onMutation:mutateActive,
+    onRestore:selectProfile,onRemoval:removeAndSelect,onMessage:say,describe:s=>`${s.solved} solved; level ${s.tier}`});
   document.body.append(dialog);
   button(controls,'Reload saved progress',()=>{if((pending||retired)&&!confirm('Reload the saved copy? Export this tab’s unsaved progress first if you need it.'))return;location.reload();},{needsIdle:false});
   document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')void refreshActive().catch(()=>retire('Saved progress could not be checked. Export a copy before reloading.'));});

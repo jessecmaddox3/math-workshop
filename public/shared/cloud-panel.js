@@ -2,7 +2,7 @@ import { parseCloudConfig } from './cloud-config.js'
 import { createCloudConnection, flushOne } from './cloud-transport.js'
 
 export function createCloudPanel(root, options) {
-  const { store, durable, normalize, curriculumId, gameId, configURL, helpURL, getProfile, isBusy, onChange, onRestore, onProfilesCleared, onMessage, describe } = options
+  const { store, durable, normalize, curriculumId, gameId, configURL, helpURL, getProfile, isBusy, onChange, onMutation, onRestore, onRemoval, onMessage, describe } = options
   let config = null, connection = null, generation = 0, view = 0, timer = null, failures = 0, running = null
   const status = document.createElement('p'); status.setAttribute('role', 'status'); status.className = 'cloud-status'
   const content = document.createElement('div')
@@ -148,14 +148,16 @@ export function createCloudPanel(root, options) {
     button('Retry cloud saving', async () => { failures = 0; queue() })
     button('Remove this account’s downloaded learners', async () => {
       if (!localActionsAllowed() || !confirm('Remove this account’s downloaded learners and recovery copies from this device? Cloud copies will remain. Export any backups first.')) return
-      const profiles = await store.listProfiles()
-      for (const profile of profiles) {
-        const record = await store.load(profile.id)
-        if (!alive(original, token)) return
-        if (original.owns(record?.binding)) await store.removeProfile(profile.id)
-      }
+      await onRemoval(async () => {
+        const profiles = await store.listProfiles()
+        for (const profile of profiles) {
+          const record = await store.load(profile.id)
+          if (!alive(original, token)) return
+          if (original.owns(record?.binding)) await store.removeProfile(profile.id)
+        }
+      })
       if (!alive(original, token)) return
-      await onProfilesCleared(); await renderConnected(); say('Downloaded learners for this account were removed from this device. Cloud copies remain.')
+      await renderConnected(); say('Downloaded learners for this account were removed from this device. Cloud copies remain.')
     })
     const selected = getProfile()
     if (selected) {
@@ -168,9 +170,9 @@ export function createCloudPanel(root, options) {
         for (const choice of remote ? ['device', 'cloud'] : ['device']) {
           button(choice === 'device' ? 'Keep this device’s progress' : 'Use the cloud progress shown above', async () => {
             if (!localActionsAllowed()) return
-            const result = await store.resolveConflict(selected.id, local.binding, local.localRevision, choice, local.conflict.id)
+            const result = await onMutation(() => store.resolveConflict(selected.id, local.binding, local.localRevision, choice, local.conflict.id))
             if (!alive(original, token)) return
-            await onChange({source:'cloud-action'}); await renderConnected()
+            await renderConnected()
             if (result.status === 'saved') { say('Your choice was saved. A recovery copy keeps the other version.'); queue() }
             else say('Progress changed while this choice was open. Review the latest versions before choosing again.')
           })
@@ -182,9 +184,9 @@ export function createCloudPanel(root, options) {
         if (!alive(original, token)) return
         const remoteProfile = await original.createProfile(selected.label)
         if (!alive(original, token)) return
-        const result = await store.attach(selected.id, { backend: config.backend, ownerId: original.ownerId, profileId: remoteProfile.id }, current.localRevision, null, 'device')
+        const result = await onMutation(() => store.attach(selected.id, { backend: config.backend, ownerId: original.ownerId, profileId: remoteProfile.id }, current.localRevision, null, 'device'))
         if (!alive(original, token)) return
-        await onChange({source:'cloud-action'}); await renderConnected()
+        await renderConnected()
         if (result.status === 'saved') queue()
         else say('The local learner changed during setup. Select the new cloud learner below to review and attach it.')
       })
@@ -219,9 +221,9 @@ export function createCloudPanel(root, options) {
       for (const choice of remote ? ['cloud', 'device'] : ['device']) {
         button(choice === 'cloud' ? `Use cloud progress for ${selected.label}` : `Use ${selected.label}’s progress for this cloud learner`, async () => {
           if (!localActionsAllowed()) return
-          const result = await store.attach(selected.id, binding, local.localRevision, remote, choice)
+          const result = await onMutation(() => store.attach(selected.id, binding, local.localRevision, remote, choice))
           if (!alive(original, token)) return
-          await onChange({source:'cloud-action'}); await renderConnected()
+          await renderConnected()
           if (result.status === 'saved') { say('Your choice was saved. The other version is available in a recovery export.'); queue() }
           else say('The local learner changed. Preview again before choosing a version.')
         })

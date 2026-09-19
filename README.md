@@ -5,8 +5,8 @@
 **Two complete math games for trying things, seeing your work, and finding another way.** No account, subscription, AI service, or installation is needed to play.
 
 - **[Play in your browser](https://jessemaddox.com/projects/math-workshop/play/)**
-- **[Download Target Number](https://github.com/jessecmaddox3/math-workshop/releases/download/v1.0.0/Target-Number.html)**
-- **[Download Area Mazes](https://github.com/jessecmaddox3/math-workshop/releases/download/v1.0.0/Area-Mazes.html)**
+- **[Download Target Number](https://github.com/jessecmaddox3/math-workshop/releases/download/v1.0.1/Target-Number.html)**
+- **[Download Area Mazes](https://github.com/jessecmaddox3/math-workshop/releases/download/v1.0.1/Area-Mazes.html)**
 
 I built these for me and my personal use, then cleaned them up so other people could use the whole thing. Make them your own, and feel free to improve mine. Hopefully they give you a useful starting point, or at the very least some ideas. Cheers!
 
@@ -71,7 +71,7 @@ Useful places to start:
 | Understand local saves and optional sync | `docs/design.md` |
 | Give an AI assistant a focused starting point | `skills/adapt-math-workshop/SKILL.md` |
 
-For source editing, install [Node.js](https://nodejs.org/) version 22 or later, download and extract the [source ZIP](https://github.com/jessecmaddox3/math-workshop/releases/download/v1.0.0/math-workshop-1.0.0-source.zip), and open a terminal in that folder:
+For source editing, install [Node.js](https://nodejs.org/) version 22 or later, download and extract the [source ZIP](https://github.com/jessecmaddox3/math-workshop/releases/download/v1.0.1/math-workshop-1.0.1-source.zip), and open a terminal in that folder:
 
 ```sh
 npm ci --ignore-scripts

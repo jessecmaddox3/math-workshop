@@ -799,7 +799,7 @@
 
   // public/shared/cloud-panel.js
   function createCloudPanel(root, options) {
-    const { store: store2, durable: durable2, normalize, curriculumId, gameId, configURL, helpURL, getProfile, isBusy, onChange, onRestore, onProfilesCleared, onMessage, describe } = options;
+    const { store: store2, durable: durable2, normalize, curriculumId, gameId, configURL, helpURL, getProfile, isBusy, onChange, onMutation, onRestore, onRemoval, onMessage, describe } = options;
     let config = null, connection = null, generation = 0, view = 0, timer = null, failures = 0, running = null;
     const status2 = document.createElement("p");
     status2.setAttribute("role", "status");
@@ -1052,14 +1052,15 @@
       });
       button2("Remove this account\u2019s downloaded learners", async () => {
         if (!localActionsAllowed() || !confirm("Remove this account\u2019s downloaded learners and recovery copies from this device? Cloud copies will remain. Export any backups first.")) return;
-        const profiles = await store2.listProfiles();
-        for (const profile2 of profiles) {
-          const record2 = await store2.load(profile2.id);
-          if (!alive(original, token)) return;
-          if (original.owns(record2?.binding)) await store2.removeProfile(profile2.id);
-        }
+        await onRemoval(async () => {
+          const profiles = await store2.listProfiles();
+          for (const profile2 of profiles) {
+            const record2 = await store2.load(profile2.id);
+            if (!alive(original, token)) return;
+            if (original.owns(record2?.binding)) await store2.removeProfile(profile2.id);
+          }
+        });
         if (!alive(original, token)) return;
-        await onProfilesCleared();
         await renderConnected();
         say2("Downloaded learners for this account were removed from this device. Cloud copies remain.");
       });
@@ -1074,9 +1075,8 @@
           for (const choice of remote ? ["device", "cloud"] : ["device"]) {
             button2(choice === "device" ? "Keep this device\u2019s progress" : "Use the cloud progress shown above", async () => {
               if (!localActionsAllowed()) return;
-              const result = await store2.resolveConflict(selected.id, local.binding, local.localRevision, choice, local.conflict.id);
+              const result = await onMutation(() => store2.resolveConflict(selected.id, local.binding, local.localRevision, choice, local.conflict.id));
               if (!alive(original, token)) return;
-              await onChange({ source: "cloud-action" });
               await renderConnected();
               if (result.status === "saved") {
                 say2("Your choice was saved. A recovery copy keeps the other version.");
@@ -1091,9 +1091,8 @@
           if (!alive(original, token)) return;
           const remoteProfile = await original.createProfile(selected.label);
           if (!alive(original, token)) return;
-          const result = await store2.attach(selected.id, { backend: config.backend, ownerId: original.ownerId, profileId: remoteProfile.id }, current.localRevision, null, "device");
+          const result = await onMutation(() => store2.attach(selected.id, { backend: config.backend, ownerId: original.ownerId, profileId: remoteProfile.id }, current.localRevision, null, "device"));
           if (!alive(original, token)) return;
-          await onChange({ source: "cloud-action" });
           await renderConnected();
           if (result.status === "saved") queue();
           else say2("The local learner changed during setup. Select the new cloud learner below to review and attach it.");
@@ -1136,9 +1135,8 @@
         for (const choice of remote ? ["cloud", "device"] : ["device"]) {
           button2(choice === "cloud" ? `Use cloud progress for ${selected.label}` : `Use ${selected.label}\u2019s progress for this cloud learner`, async () => {
             if (!localActionsAllowed()) return;
-            const result = await store2.attach(selected.id, binding, local.localRevision, remote, choice);
+            const result = await onMutation(() => store2.attach(selected.id, binding, local.localRevision, remote, choice));
             if (!alive(original, token)) return;
-            await onChange({ source: "cloud-action" });
             await renderConnected();
             if (result.status === "saved") {
               say2("Your choice was saved. The other version is available in a recovery export.");
@@ -1228,6 +1226,7 @@
   var exportButton;
   var modalMessage;
   var lastMessage = "";
+  var refreshEpoch = 0;
   var title = { target: "Target Number", areamaze: "Area Mazes" };
   var el = (tag, text) => {
     const n = document.createElement(tag);
@@ -1345,23 +1344,61 @@
       if (epoch === selectionEpoch) loading = false;
     }
   }
-  async function refreshActive({ source } = {}) {
+  async function mutateActive(action) {
+    if (pending || loading || retired || recoveryMode) throw new Error("Finish the current save before changing cloud progress.");
+    loading = true;
+    refreshEpoch++;
+    const gameplay = document.querySelector("#gameplay"), wasInert = gameplay.inert;
+    gameplay.inert = true;
+    try {
+      const result = await action();
+      if (result.status === "saved") {
+        const loaded = result.record;
+        if (!loaded || loaded.profileId !== profile.id) throw new Error("Cloud action returned a different learner.");
+        const changed = JSON.stringify(loaded.snapshot) !== JSON.stringify(record.snapshot);
+        record = loaded;
+        live = normalizeSnapshot(game, loaded.snapshot);
+        if (changed) {
+          document.dispatchEvent(new Event("progress-retired"));
+          document.dispatchEvent(new Event("progress-loaded"));
+        }
+        status();
+      }
+      return result;
+    } finally {
+      loading = false;
+      refreshEpoch++;
+      gameplay.inert = retired || wasInert;
+      void refreshActive().catch(() => retire("Saved progress could not be checked. Export a copy before reloading."));
+    }
+  }
+  async function removeAndSelect(action) {
+    if (pending || loading || retired) throw new Error("Finish the current save before removing learners.");
+    loading = true;
+    refreshEpoch++;
+    const gameplay = document.querySelector("#gameplay"), wasInert = gameplay.inert;
+    gameplay.inert = true;
+    let next;
+    try {
+      await action();
+      const remaining = await store.listProfiles();
+      next = remaining.find((p) => p.id === profile.id) || remaining[0] || await store.createProfile("Player 1", cleanProgress(game, {}));
+    } catch (error) {
+      retire("Learner removal could not finish. Export this tab\u2019s copy if needed, then reload.");
+      throw error;
+    } finally {
+      loading = false;
+      refreshEpoch++;
+      gameplay.inert = retired || wasInert;
+    }
+    await selectProfile(next);
+  }
+  async function refreshActive() {
     if (pending || loading || retired || recoveryMode || !profile) return;
-    const expected = record.localRevision, id = profile.id, epoch = selectionEpoch, loaded = await store.load(id);
-    if (pending || loading || retired || profile.id !== id || selectionEpoch !== epoch || record.localRevision !== expected) return;
+    const expected = record.localRevision, id = profile.id, epoch = selectionEpoch, refresh = refreshEpoch, loaded = await store.load(id);
+    if (pending || loading || retired || profile.id !== id || selectionEpoch !== epoch || refreshEpoch !== refresh || record.localRevision !== expected) return;
     if (!loaded) {
       retire("This learner was removed in another tab. Export this tab\u2019s older copy if needed, then reload.");
-      return;
-    }
-    if (loaded.localRevision !== record.localRevision && source === "cloud-action") {
-      const changed = JSON.stringify(loaded.snapshot) !== JSON.stringify(record.snapshot);
-      record = loaded;
-      live = normalizeSnapshot(game, loaded.snapshot);
-      if (changed) {
-        document.dispatchEvent(new Event("progress-retired"));
-        document.dispatchEvent(new Event("progress-loaded"));
-      }
-      status();
       return;
     }
     if (loaded.localRevision !== record.localRevision) {
@@ -1487,11 +1524,8 @@
     }, { needsIdle: false });
     button(backups, "Remove this learner from this game", async () => {
       if (!confirm("Remove this learner and recovery copies from this game on this device? Other games and cloud copies remain. Export a backup first if needed.")) return;
-      await store.removeProfile(profile.id);
       cloud.disconnect();
-      const remaining = await store.listProfiles();
-      await selectProfile(remaining[0] || await store.createProfile("Player 1", cleanProgress(game, {})));
-      cloud.renderConnected();
+      await removeAndSelect(() => store.removeProfile(profile.id));
     });
     dialog.append(backups);
     const cloudRoot = el("section");
@@ -1508,11 +1542,9 @@
       getProfile: () => profile,
       isBusy: () => pending > 0 || loading || retired || recoveryMode,
       onChange: refreshActive,
+      onMutation: mutateActive,
       onRestore: selectProfile,
-      onProfilesCleared: async () => {
-        const remaining = await store.listProfiles();
-        await selectProfile(remaining.find((p) => p.id === profile.id) || remaining[0] || await store.createProfile("Player 1", cleanProgress(game, {})));
-      },
+      onRemoval: removeAndSelect,
       onMessage: say,
       describe: (s) => `${s.solved} solved; level ${s.tier}`
     });
