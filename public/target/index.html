@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Target Number</title>
+<meta name="robots" content="noindex,nofollow">
+<meta name="theme-color" content="#f6f4ef">
+<link rel="stylesheet" href="../shared/game.css">
+<style>
+  .target-line { display:flex; align-items:baseline; gap:12px; margin-bottom:6px; }
+  .target-num { font-size:56px; font-weight:700; letter-spacing:-.02em; line-height:1; }
+  .target-label { font-size:13px; text-transform:uppercase; letter-spacing:.09em; color:var(--accent); font-weight:700; }
+
+  .start-line { font-size:15px; color:var(--muted); margin:0 0 22px; }
+  .start-line b { color:var(--ink); font-size:17px; letter-spacing:.04em; }
+
+  .nums { display:flex; flex-wrap:wrap; gap:14px; margin-bottom:18px; min-height:96px; }
+  .num {
+    max-width:100%; min-width:88px; min-height:88px; padding:10px 16px; font:inherit; font-size:30px; font-weight:700;
+    background:#fff; border:2px solid var(--line); border-radius:16px; cursor:pointer;
+    display:flex; flex-direction:column; align-items:center; justify-content:center; gap:3px;
+  }
+  .num.sel { border-color:var(--accent); background:var(--accent-soft); }
+
+  .num.fused { border-style:dashed; }
+  .num small {
+    display:block; font-size:14px; font-weight:600; color:var(--accent-ink, var(--accent));
+    letter-spacing:.01em; white-space:normal; overflow-wrap:anywhere;
+  }
+
+  .ops { display:flex; flex-wrap:wrap; gap:12px; margin-bottom:10px; }
+  .op {
+    min-width:72px; min-height:72px; font:inherit; font-size:28px; font-weight:700;
+    background:#fff; border:2px solid var(--line); border-radius:16px; cursor:pointer;
+  }
+  .op.sel { border-color:var(--accent); background:var(--accent-soft); color:var(--accent); }
+
+  .helper { font-size:15px; color:var(--muted); margin:0 0 20px; min-height:22px; }
+  .helper b { color:var(--ink); }
+
+
+  .steps { margin:18px 0; }
+  .steps-label { font-size:12px; text-transform:uppercase; letter-spacing:.09em; color:var(--accent); font-weight:700; margin:0 0 8px; }
+  .steps ol { margin:0; padding-left:22px; display:grid; gap:6px; font-size:17px; }
+  .steps li b { font-size:19px; }
+
+
+  .feedback { --advance: 2.6s; }
+  .found { display:grid; gap:6px; margin:14px 0; }
+  .found code { font-size:15px; background:#fff; border:1px solid var(--line); border-radius:8px; padding:8px 10px; }
+</style>
+
+</head>
+<body>
+<div class="wrap">
+  <header class="masthead">
+    <h1>Target Number</h1>
+    <a class="back" href="../index.html">&larr; Math Workshop</a>
+  </header>
+  <main id="gameplay">
+  <div class="scoreboard">
+    <span>Solved <b id="solved">0</b></span>
+    <span>Second ways found <b id="extras">0</b></span>
+  </div>
+
+  <div class="target-line">
+    <span class="target-label">Make</span>
+    <span class="target-num" id="target">24</span>
+  </div>
+  <p class="start-line">using every one of these once: <b id="start-nums"></b></p>
+
+  <div class="nums" id="nums"></div>
+  <div class="ops" id="ops"></div>
+  <p class="helper" id="helper"></p>
+
+  <div class="row">
+    <button class="ghost" type="button" id="undo">undo</button>
+    <button class="ghost" type="button" id="reset">start over</button>
+    <button class="ghost" type="button" id="skip">new numbers</button>
+  </div>
+
+  <p><label><input id="auto-advance" type="checkbox" checked> Move to the next card automatically</label></p>
+  <div class="steps" id="steps"></div>
+  <div id="hint" role="status" class="hint" hidden></div>
+  <div id="feedback" role="status" class="feedback" hidden></div>
+  <div class="found" id="found"></div>
+</main>
+</div>
+<script src="./app.js" defer></script>
+</body>
+</html>

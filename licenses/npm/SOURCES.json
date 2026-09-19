@@ -1,0 +1,75 @@
+[
+  {
+    "package": "@supabase/auth-js",
+    "version": "2.116.0",
+    "license": "MIT",
+    "notices": [
+      "licenses/npm/supabase-auth-js-LICENSE"
+    ]
+  },
+  {
+    "package": "@supabase/functions-js",
+    "version": "2.116.0",
+    "license": "MIT",
+    "notices": [
+      "licenses/npm/supabase-functions-js-LICENSE"
+    ]
+  },
+  {
+    "package": "@supabase/phoenix",
+    "version": "0.4.5",
+    "license": "MIT",
+    "notices": [
+      "licenses/npm/supabase-phoenix-LICENSE.md"
+    ]
+  },
+  {
+    "package": "@supabase/postgrest-js",
+    "version": "2.116.0",
+    "license": "MIT",
+    "notices": [
+      "licenses/npm/supabase-postgrest-js-LICENSE"
+    ]
+  },
+  {
+    "package": "@supabase/realtime-js",
+    "version": "2.116.0",
+    "license": "MIT",
+    "notices": [
+      "licenses/npm/supabase-realtime-js-LICENSE"
+    ]
+  },
+  {
+    "package": "@supabase/storage-js",
+    "version": "2.116.0",
+    "license": "MIT",
+    "notices": [
+      "licenses/npm/supabase-storage-js-LICENSE"
+    ]
+  },
+  {
+    "package": "@supabase/supabase-js",
+    "version": "2.116.0",
+    "license": "MIT",
+    "notices": [
+      "licenses/npm/supabase-supabase-js-LICENSE"
+    ]
+  },
+  {
+    "package": "iceberg-js",
+    "version": "0.8.1",
+    "license": "MIT",
+    "notices": [
+      "licenses/npm/iceberg-js-LICENSE"
+    ]
+  },
+  {
+    "package": "tslib",
+    "version": "2.8.1",
+    "license": "0BSD",
+    "notices": [
+      "licenses/npm/tslib-CopyrightNotice.txt",
+      "licenses/npm/tslib-LICENSE.txt"
+    ]
+  }
+]

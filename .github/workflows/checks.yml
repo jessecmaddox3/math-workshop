@@ -1,0 +1,95 @@
+name: Checks
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  core:
+    runs-on: ubuntu-24.04
+    strategy:
+      matrix:
+        node: [22, 24]
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: npm test
+      - run: npm run build
+  offline-browser:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.12'
+      - run: npm ci --ignore-scripts && npm run build
+      - run: python -m pip install playwright==1.58.0
+      - run: python -m playwright install --with-deps chromium
+      - run: python scripts/test-browser.py
+      - run: python scripts/test-saves-browser.py
+  real-supabase:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      SUPABASE_TELEMETRY_DISABLED: '1'
+      DO_NOT_TRACK: '1'
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.12'
+      - run: npm ci --ignore-scripts && npm run build
+      - run: python -m pip install playwright==1.58.0
+      - run: python -m playwright install --with-deps chromium
+      - name: Install verified Supabase CLI
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/math-cli"
+          curl --fail --location --retry 3 https://github.com/supabase/cli/releases/download/v2.117.0/supabase_2.117.0_linux_amd64.tar.gz -o "$RUNNER_TEMP/math-cli.tar.gz"
+          echo "69c05f85b9e47ee706d30f1a6ca8a526b4e337bfd12c7ef1ef522d24e7280d24  $RUNNER_TEMP/math-cli.tar.gz" | sha256sum --check
+          tar -xzf "$RUNNER_TEMP/math-cli.tar.gz" -C "$RUNNER_TEMP/math-cli"
+          echo "$RUNNER_TEMP/math-cli" >> "$GITHUB_PATH"
+      - name: Prepare isolated loopback stack
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker info >/dev/null
+          python scripts/prepare-supabase-test.py "$RUNNER_TEMP/math-backend"
+          docker network create --driver bridge --opt com.docker.network.bridge.host_binding_ipv4=127.0.0.1 "math-ci-${GITHUB_RUN_ID}"
+      - name: Start real local Auth, REST and mail capture
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/math-backend"
+          supabase --network-id "math-ci-${GITHUB_RUN_ID}" start --exclude realtime,storage-api,imgproxy,postgres-meta,studio,edge-runtime,logflare,vector,supavisor > "$RUNNER_TEMP/math-start.log" 2>&1
+          supabase status -o json > "$RUNNER_TEMP/math-local-status.json"
+          docker ps --filter "network=math-ci-${GITHUB_RUN_ID}" -q | xargs docker inspect > "$RUNNER_TEMP/math-containers.json"
+          python "$GITHUB_WORKSPACE/scripts/check-test-bindings.py" "$RUNNER_TEMP/math-containers.json"
+      - name: Exercise actual OTP, RLS, saves and cross-device restore
+        run: python scripts/test-supabase.py "$RUNNER_TEMP/math-local-status.json"
+      - name: Safe diagnostics
+        if: failure()
+        run: python scripts/test-diagnostics.py "$RUNNER_TEMP/math-start.log"
+      - name: Remove this test stack only
+        if: always()
+        shell: bash
+        run: |
+          if [ -d "$RUNNER_TEMP/math-backend/supabase" ]; then
+            cd "$RUNNER_TEMP/math-backend"
+            supabase stop --no-backup > "$RUNNER_TEMP/math-stop.log" 2>&1 || true
+          fi
+          docker network rm "math-ci-${GITHUB_RUN_ID}" >/dev/null 2>&1 || true

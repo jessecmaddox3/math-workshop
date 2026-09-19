@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Area Mazes</title>
+<meta name="robots" content="noindex,nofollow">
+<meta name="theme-color" content="#f6f4ef">
+<link rel="stylesheet" href="../shared/game.css">
+<style>
+  .maze { display:flex; margin:26px 0 10px 34px; max-width:calc(100% - 34px); }
+  .maze.col { flex-direction:column; }
+  .cell { position:relative; border:2px solid var(--ink); background:#fff; display:grid; place-items:center; }
+  .maze.row .cell { border-right-width:1px; }
+  .maze.row .cell:last-child { border-right-width:2px; }
+  .maze.col .cell { border-bottom-width:1px; }
+  .maze.col .cell:last-child { border-bottom-width:2px; }
+  .area { font-size:20px; font-weight:700; }
+  .area.q { color:var(--warn); }
+  .side { position:absolute; font-size:15px; color:var(--accent-ink); font-weight:700; white-space:nowrap; }
+  .side.top { top:-24px; left:50%; transform:translateX(-50%); }
+  .side.left { left:-30px; top:50%; transform:translateY(-50%); }
+  .side.q { color:var(--warn); }
+  .scale-note { font-size:13px; color:var(--muted); font-style:italic; margin-top:16px; }
+  .answer-row { display:flex; gap:10px; align-items:center; margin-top:20px; flex-wrap:wrap; }
+  #guess { width:110px; min-height:48px; padding:8px 12px; font:inherit; font-size:20px; font-weight:700;
+           border:1px solid var(--line); border-radius:10px; background:#fff; color:inherit; }
+</style>
+
+</head>
+<body>
+<div class="wrap">
+  <header class="masthead">
+    <h1>Area Mazes</h1>
+    <a class="back" href="../index.html">&larr; Math Workshop</a>
+  </header>
+  <main id="gameplay">
+  <div class="scoreboard">
+    <span>Solved <b id="solved">0</b></span>
+    <span>Level <b id="tier">1</b></span>
+  </div>
+  <p class="prompt-kind">Find the red value</p>
+  <div class="maze" id="maze"></div>
+  <p class="scale-note">Careful: these are not drawn to scale on purpose. Measuring will lie to you.</p>
+  <div class="answer-row">
+    <input id="guess" type="text" inputmode="numeric" autocomplete="off" aria-label="Your answer">
+    <button class="primary" type="button" id="check">check</button>
+    <button class="ghost" type="button" id="skip">another puzzle</button>
+  </div>
+  <div id="hint" role="status" class="hint" hidden></div>
+  <div id="feedback" role="status" class="feedback" hidden></div>
+</main>
+</div>
+<script src="./app.js" defer></script>
+</body>
+</html>
