@@ -1413,9 +1413,10 @@
     dialog.append(heading, modalMessage);
     dialog.addEventListener("close", () => say(lastMessage));
     dialog.append(el("p", "Each game has its own learners and progress. Nicknames are labels, not accounts. Anyone using this browser can see local learners and exports."));
-    button(controls, "Learners and backups", () => {
+    button(controls, "Learners and backups", async () => {
       dialog.showModal();
       say(lastMessage);
+      await cloud.renderConnected();
     }, { needsIdle: false });
     button(dialog, "Close", () => dialog.close(), { needsIdle: false });
     profileList = el("div");

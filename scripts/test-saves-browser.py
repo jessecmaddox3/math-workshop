@@ -36,14 +36,31 @@ def main():
  server=ThreadingHTTPServer(('127.0.0.1',0),partial(Quiet,directory=str(ROOT/'public')));Thread(target=server.serve_forever,daemon=True).start();origin=f'http://127.0.0.1:{server.server_port}';failures=[]
  with sync_playwright() as pw:
   browser=pw.chromium.launch()
-  def check(name,action,init=None,url=None):
+  def check(name,action,init=None,url=None,cloud_panel=None):
    ctx=browser.new_context(viewport={'width':390,'height':844});outside=[];errors=[]
    ctx.route('**/*',lambda r:r.continue_() if (r.request.url.startswith(origin+'/') or r.request.url.startswith((ROOT/'artifacts').as_uri()+'/')) else (outside.append(r.request.url),r.abort()))
+   if cloud_panel:
+    ctx.route("**/shared/cloud-panel.js",lambda route:route.fulfill(status=200,content_type="text/javascript",body=cloud_panel))
+    source_html=(ROOT/'public/target/index.html').read_text().replace('<script src="./app.js" defer></script>','<script type="module" src="./target.js"></script>')
+    ctx.route("**/target/",lambda route:route.fulfill(status=200,content_type="text/html",body=source_html))
    if init:ctx.add_init_script(init)
    p=ctx.new_page();p.on('pageerror',lambda e:errors.append(str(e)));p.goto(url or origin+'/target/');p.get_by_role('button',name='Learners and backups',exact=True).wait_for()
    try:action(p,ctx);assert not outside,outside;assert not errors,errors;print('PASS',name,flush=True)
    except Exception as e:failures.append(name+': '+str(e));print('FAIL',name,str(e),flush=True)
    ctx.close()
+  # Substitute only the provider panel: the real adapter must refresh its view
+  # when an adult opens settings after a background cloud state change.
+  panel_fixture="""export function createCloudPanel(root) {
+    window.syntheticCloudSummary='No background changes';
+    const p=document.createElement('p');p.id='synthetic-cloud-summary';root.append(p);
+    return {queue(){},disconnect(){},async renderConnected(){p.textContent=window.syntheticCloudSummary}};
+  }"""
+  def reopen_cloud(p,c):
+   settings(p);p.get_by_text('No background changes',exact=True).wait_for(timeout=2000)
+   p.get_by_role('button',name='Close',exact=True).click()
+   p.evaluate("window.syntheticCloudSummary='Another device changed this learner: review the two copies'")
+   settings(p);p.get_by_text('Another device changed this learner: review the two copies',exact=True).wait_for(timeout=2000)
+  check('opening learner controls refreshes background cloud changes',reopen_cloud,cloud_panel=panel_fixture)
   def local(p,c):
    p.locator('#auto-advance').uncheck();solve_ui(p);p.wait_for_function("document.querySelector('#solved').textContent==='1'");p.get_by_text('Saved on this device.',exact=False).wait_for();p.reload();assert p.locator('#solved').inner_text()=='1';assert not p.locator('#auto-advance').is_checked()
    settings(p)

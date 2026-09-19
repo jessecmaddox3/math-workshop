@@ -26,3 +26,9 @@ test('own cloud attachment adopts its revision without disconnecting or changing
  const {api,events}=adapter();api.set({...current('Comet',1,3),store:{load:async()=>({localRevision:2,snapshot:{solved:3},binding:{ownerId:'synthetic'}})}});
  await api.refresh({source:'cloud-action'});assert.equal(api.get().record.localRevision,2);assert.equal(api.get().retired,false);assert.deepEqual(events,[]);
 });
+test('choosing a different cloud snapshot resets the active controller to the accepted progress',async()=>{
+ const {api,events}=adapter();api.set({...current('Comet',7,12),store:{load:async()=>({localRevision:8,snapshot:{solved:4},binding:{ownerId:'synthetic'}})}});
+ await api.refresh({source:'cloud-action'});
+ assert.equal(api.get().live.solved,4);assert.equal(api.get().record.localRevision,8);assert.equal(api.get().retired,false);
+ assert.deepEqual(events,['progress-retired','progress-loaded']);
+});
